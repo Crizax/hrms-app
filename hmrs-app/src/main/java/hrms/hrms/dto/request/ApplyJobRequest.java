@@ -12,6 +12,4 @@ public class ApplyJobRequest {
 
 	@NotNull
 	private Integer jobAdvertisementId;
-	@NotNull
-	private Integer jobSeekerId;
 }

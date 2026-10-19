@@ -14,16 +14,20 @@ import hrms.hrms.core.utilities.SuccessResult;
 import hrms.hrms.dto.JobSeekerDto;
 import hrms.hrms.dto.request.JobSeekerRegisterRequest;
 import hrms.hrms.entity.JobSeeker;
+import hrms.hrms.repository.EmployerDao; // <-- 1. Import EmployerDao
 import hrms.hrms.repository.JobSeekerDao;
 
 @Service
 public class JobSeekerManager implements JobSeekerService {
 
 	private final JobSeekerDao jobSeekerDao;
+	private final EmployerDao employerDao; // <-- 2. Add field
 	private final PasswordEncoder passwordEncoder;
 
-	public JobSeekerManager(JobSeekerDao jobSeekerDao, PasswordEncoder passwordEncoder) {
+	// 3. Inject EmployerDao in constructor
+	public JobSeekerManager(JobSeekerDao jobSeekerDao, EmployerDao employerDao, PasswordEncoder passwordEncoder) {
 		this.jobSeekerDao = jobSeekerDao;
+		this.employerDao = employerDao;
 		this.passwordEncoder = passwordEncoder;
 	}
 
@@ -32,7 +36,9 @@ public class JobSeekerManager implements JobSeekerService {
 		if (!request.getPassword().equals(request.getConfirmPassword())) {
 			return new ErrorResult("Passwords do not match.");
 		}
-		if (jobSeekerDao.findByEmail(request.getEmail()).isPresent()) {
+		// 4. Check BOTH tables for the email
+		if (jobSeekerDao.findByEmail(request.getEmail()).isPresent()
+				|| employerDao.findByEmail(request.getEmail()).isPresent()) {
 			return new ErrorResult("Email is already in use.");
 		}
 		if (jobSeekerDao.findByNationalId(request.getNationalId()).isPresent()) {
@@ -57,5 +63,4 @@ public class JobSeekerManager implements JobSeekerService {
 				j.getNationalId(), j.getBirthDate(), j.getEmail())).toList();
 		return new SuccessDataResult<>(list, "Job seekers listed.");
 	}
-
 }

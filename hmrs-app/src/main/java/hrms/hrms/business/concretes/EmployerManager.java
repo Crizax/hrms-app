@@ -15,15 +15,19 @@ import hrms.hrms.dto.EmployerDto;
 import hrms.hrms.dto.request.EmployerRegisterRequest;
 import hrms.hrms.entity.Employer;
 import hrms.hrms.repository.EmployerDao;
+import hrms.hrms.repository.JobSeekerDao; // <-- 1. Import JobSeekerDao
 
 @Service
 public class EmployerManager implements EmployerService {
 
 	private final EmployerDao employerDao;
+	private final JobSeekerDao jobSeekerDao; // <-- 2. Add field
 	private final PasswordEncoder passwordEncoder;
 
-	public EmployerManager(EmployerDao employerDao, PasswordEncoder passwordEncoder) {
+	// 3. Inject JobSeekerDao in constructor
+	public EmployerManager(EmployerDao employerDao, JobSeekerDao jobSeekerDao, PasswordEncoder passwordEncoder) {
 		this.employerDao = employerDao;
+		this.jobSeekerDao = jobSeekerDao;
 		this.passwordEncoder = passwordEncoder;
 	}
 
@@ -32,7 +36,9 @@ public class EmployerManager implements EmployerService {
 		if (!request.getPassword().equals(request.getConfirmPassword())) {
 			return new ErrorResult("Passwords do not match.");
 		}
-		if (employerDao.findByEmail(request.getEmail()).isPresent()) {
+		// 4. Check BOTH tables for the email
+		if (employerDao.findByEmail(request.getEmail()).isPresent()
+				|| jobSeekerDao.findByEmail(request.getEmail()).isPresent()) {
 			return new ErrorResult("Email is already in use.");
 		}
 

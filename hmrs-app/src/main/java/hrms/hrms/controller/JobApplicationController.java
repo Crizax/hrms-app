@@ -2,6 +2,7 @@ package hrms.hrms.controller;
 
 import java.util.List;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import hrms.hrms.business.abstracts.JobApplicationService;
+import hrms.hrms.core.security.CustomUserDetails;
 import hrms.hrms.core.utilities.DataResult;
 import hrms.hrms.core.utilities.Result;
 import hrms.hrms.dto.JobApplicationDto;
@@ -28,22 +30,29 @@ public class JobApplicationController {
 	}
 
 	@PostMapping("/apply")
-	public Result apply(@Valid @RequestBody ApplyJobRequest request) {
-		return jobApplicationService.apply(request);
+	public Result apply(
+			@Valid @RequestBody ApplyJobRequest request,
+			@AuthenticationPrincipal CustomUserDetails currentUser) {
+		return jobApplicationService.apply(request, currentUser.getId());
 	}
 
 	@PostMapping("/update-status")
-	public Result updateStatus(@Valid @RequestBody UpdateApplicationStatusRequest request) {
-		return jobApplicationService.updateStatus(request);
+	public Result updateStatus(
+			@Valid @RequestBody UpdateApplicationStatusRequest request,
+			@AuthenticationPrincipal CustomUserDetails currentUser) {
+		return jobApplicationService.updateStatus(request, currentUser.getId());
 	}
 
 	@GetMapping("/by-advertisement/{adId}")
-	public DataResult<List<JobApplicationDto>> getByAdvertisement(@PathVariable("adId") Integer adId) {
-		return jobApplicationService.getByAdvertisement(adId);
+	public DataResult<List<JobApplicationDto>> getByAdvertisement(
+			@PathVariable("adId") Integer adId,
+			@AuthenticationPrincipal CustomUserDetails currentUser) {
+		return jobApplicationService.getByAdvertisement(adId, currentUser.getId());
 	}
 
-	@GetMapping("/by-jobseeker/{seekerId}")
-	public DataResult<List<JobApplicationDto>> getByJobSeeker(@PathVariable("seekerId") Integer seekerId) {
-		return jobApplicationService.getByJobSeeker(seekerId);
+	@GetMapping("/my-applications")
+	public DataResult<List<JobApplicationDto>> getMyApplications(
+			@AuthenticationPrincipal CustomUserDetails currentUser) {
+		return jobApplicationService.getByJobSeeker(currentUser.getId());
 	}
 }

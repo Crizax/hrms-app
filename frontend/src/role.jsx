@@ -1,29 +1,48 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { AUTH_STORAGE_KEY, api } from './api'
 
-// Demo-only roles: this is NOT authentication. It only changes what the UI shows.
-const KEY = 'hrms-demo-role'
 const Ctx = createContext(null)
 
-function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) ?? {} } catch { return {} }
+function loadAuth() {
+  try {
+    return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)) ?? null
+  } catch {
+    return null
+  }
 }
 
 export function RoleProvider({ children }) {
-  const [saved] = useState(load)
-  const [role, setRole] = useState(saved.role === 'employer' ? 'employer' : 'candidate')
-  const [actors, setActors] = useState({ candidate: saved.actors?.candidate ?? '', employer: saved.actors?.employer ?? '' })
+  const [user, setUser] = useState(loadAuth)
 
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify({ role, actors })) } catch { /* storage unavailable */ }
-  }, [role, actors])
+    try {
+      if (user) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
+      else localStorage.removeItem(AUTH_STORAGE_KEY)
+    } catch {
+      /* storage unavailable */
+    }
+  }, [user])
+
+  const login = async (email, password) => {
+    const res = await api.post('/api/auth/login', { email, password })
+    setUser(res.data) // { token, userId, email, role }
+    return res.data
+  }
+
+  const logout = () => setUser(null)
+
+  // Map backend role ("ROLE_EMPLOYER" | "ROLE_JOBSEEKER") to UI role ("employer" | "candidate")
+  const role = user?.role === 'ROLE_EMPLOYER' ? 'employer' : user?.role === 'ROLE_JOBSEEKER' ? 'candidate' : 'guest'
 
   const value = {
+    user,
     role,
-    setRole,
-    // id of the candidate or employer the person is "acting as" in the current role
-    actorId: actors[role] ? Number(actors[role]) : null,
-    setActor: (id) => setActors((a) => ({ ...a, [role]: id })),
+    actorId: user?.userId ? Number(user.userId) : null,
+    isAuthenticated: !!user?.token,
+    login,
+    logout,
   }
+
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 

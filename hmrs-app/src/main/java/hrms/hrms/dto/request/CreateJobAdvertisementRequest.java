@@ -23,9 +23,6 @@ public class CreateJobAdvertisementRequest {
 	@NotNull
 	private Integer cityId;
 
-	@NotNull
-	private Integer employerId;
-
 	@NotBlank
 	@Size(min = 10, max = 5000)
 	private String description;

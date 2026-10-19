@@ -10,11 +10,11 @@ import hrms.hrms.dto.request.UpdateApplicationStatusRequest;
 
 public interface JobApplicationService {
 
-	Result apply(ApplyJobRequest request);
+	Result apply(ApplyJobRequest request, Integer authenticatedSeekerId);
 
-	Result updateStatus(UpdateApplicationStatusRequest request);
+	Result updateStatus(UpdateApplicationStatusRequest request, Integer authenticatedEmployerId);
 
-	DataResult<List<JobApplicationDto>> getByAdvertisement(Integer jobAdvertisementId);
+	DataResult<List<JobApplicationDto>> getByAdvertisement(Integer jobAdvertisementId, Integer authenticatedEmployerId);
 
-	DataResult<List<JobApplicationDto>> getByJobSeeker(Integer jobSeekerId);
+	DataResult<List<JobApplicationDto>> getByJobSeeker(Integer authenticatedSeekerId);
 }

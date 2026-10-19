@@ -15,6 +15,9 @@ public class JobApplicationDto {
 	private Integer id;
 	private Integer jobAdvertisementId;
 	private Integer jobSeekerId;
+	private String candidateFirstName;
+	private String candidateLastName;
+	private String candidateEmail;
 	private String jobTitle;
 	private String employerCompanyName;
 	private LocalDateTime applicationDate;

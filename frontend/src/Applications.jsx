@@ -1,73 +1,80 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { api } from './api'
 import { useRole } from './role'
-import { Badge, Empty, Notice, PageHeader, display, inputCls, useList } from './ui'
+import { Badge, Empty, Notice, PageHeader, SkeletonList, display, inputCls, useList } from './ui'
 
-// Edit these to match your JobApplicationStatus enum. The keys are sent to the backend exactly as written.
 const STATUS_META = {
-  PENDING: { label: 'Pending', color: '#627085', tone: 'slate' },
-  REVIEWING: { label: 'Reviewing', color: '#B7791F', tone: 'amber' },
-  ACCEPTED: { label: 'Accepted', color: '#1B7A43', tone: 'green' },
-  REJECTED: { label: 'Rejected', color: '#B3342B', tone: 'red' },
+  PENDING: { label: 'Pending Review', color: '#F59E0B', tone: 'amber', bg: 'bg-amber-50/70 border-amber-200/80' },
+  ACCEPTED: { label: 'Accepted / Hired', color: '#10B981', tone: 'green', bg: 'bg-emerald-50/70 border-emerald-200/80' },
+  REJECTED: { label: 'Rejected', color: '#F43F5E', tone: 'red', bg: 'bg-rose-50/70 border-rose-200/80' },
 }
 
-const dateOf = (v) => (v ? new Date(v).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
+const dateOf = (v) =>
+  v ? new Date(v).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
-/** Candidate view: read-only list of the current candidate's applications. */
 export function MyApplications() {
-  const { actorId } = useRole()
-  const apps = useList(actorId ? `/api/applications/by-jobseeker/${actorId}` : null)
+  const apps = useList('/api/applications/my-applications')
 
   return (
     <>
-      <PageHeader title="My applications" intro="Follow where each of your applications stands." />
+      <PageHeader
+        badge="Candidate Portal"
+        title="My Applications"
+        intro="Track the real-time status of every role you have applied for."
+      />
       {apps.error && <Notice ok={false}>{apps.error}</Notice>}
-      {!actorId ? <Empty>Choose a profile in “Acting as” (top right) to see your applications.</Empty>
-        : apps.loading ? <p className="text-sm text-[#627085]">Loading…</p>
-        : apps.items.length === 0 && !apps.error ? <Empty>You haven’t applied to anything yet. Browse jobs to get started.</Empty>
-        : (
-          <ul className="space-y-3">
-            {apps.items.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#DDE3EA] bg-white p-5">
-                <div>
-                  <p className="font-semibold text-[#17233A]">{a.jobTitle}</p>
-                  <p className="text-sm text-[#627085]">{a.employerCompanyName} · applied {dateOf(a.applicationDate)}</p>
+      {apps.loading ? (
+        <SkeletonList count={3} />
+      ) : apps.items.length === 0 && !apps.error ? (
+        <Empty title="No applications submitted yet">
+          Browse open roles on the job board and apply with one click to start tracking your progress here.
+        </Empty>
+      ) : (
+        <ul className="space-y-3">
+          {apps.items.map((a) => (
+            <li
+              key={a.id}
+              className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs transition hover:border-slate-300"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#17233A] text-sm font-bold text-white">
+                  {(a.employerCompanyName || 'CO').slice(0, 2).toUpperCase()}
                 </div>
-                <Badge tone={STATUS_META[a.status]?.tone ?? 'slate'}>{STATUS_META[a.status]?.label ?? a.status}</Badge>
-              </li>
-            ))}
-          </ul>
-        )}
+                <div>
+                  <p style={display} className="text-base font-bold text-slate-900">{a.jobTitle}</p>
+                  <p className="text-sm text-slate-500">
+                    <span className="font-medium text-slate-700">{a.employerCompanyName}</span> · Applied on {dateOf(a.applicationDate)}
+                  </p>
+                </div>
+              </div>
+              <Badge tone={STATUS_META[a.status]?.tone ?? 'slate'}>
+                {STATUS_META[a.status]?.label ?? a.status}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   )
 }
 
-/** Employer view: pipeline board for one of the current employer's advertisements. */
 export default function Applications() {
   const { actorId } = useRole()
-  const employers = useList('/api/employers/getAll')
-  const ads = useList('/api/jobPost/getAll')
-  const seekers = useList('/api/candidateController/getAll')
+  const myAds = useList(actorId ? `/api/jobPost/active/by-employer?employerId=${actorId}` : null)
   const [selected, setSelected] = useState('')
   const [moveError, setMoveError] = useState('')
   const [busyId, setBusyId] = useState(null)
 
-  const me = employers.items.find((e) => e.id === actorId)
-  const myAds = ads.items.filter((a) => me && a.companyName === me.companyName)
   const apps = useList(selected ? `/api/applications/by-advertisement/${selected}` : null)
-  const seekerById = useMemo(() => Object.fromEntries(seekers.items.map((s) => [s.id, s])), [seekers.items])
-
-  // Known stages first, then any status the backend returns that isn't listed above.
-  const statuses = useMemo(() => {
-    const extra = [...new Set(apps.items.map((a) => a.status))].filter((s) => s && !STATUS_META[s])
-    return [...Object.keys(STATUS_META), ...extra]
-  }, [apps.items])
+  const statuses = Object.keys(STATUS_META)
 
   const move = async (app, status) => {
-    setBusyId(app.id); setMoveError('')
+    setBusyId(app.id)
+    setMoveError('')
     try {
       await api.post('/api/applications/update-status', { applicationId: app.id, status })
       await apps.reload()
+      await myAds.reload()
     } catch (e) {
       setMoveError(e.message)
     } finally {
@@ -77,53 +84,151 @@ export default function Applications() {
 
   return (
     <>
-      <PageHeader title="Applications" intro="Review who applied and move each application through your hiring stages." />
-      {!actorId ? <Empty>Choose your company in “Acting as” (top right) to review applications.</Empty> : (
-        <>
-          <div className="mb-6">
-            <select aria-label="Advertisement" value={selected} onChange={(e) => setSelected(e.target.value)} className={`${inputCls} w-auto min-w-64`}>
-              <option value="">{myAds.length ? 'Choose an advertisement…' : 'No advertisements posted yet'}</option>
-              {myAds.map((a) => <option key={a.id} value={a.id}>{a.jobTitle}{a.city && ` · ${a.city}`}</option>)}
-            </select>
+      <PageHeader
+        badge="Hiring Pipeline"
+        title="Applicant Tracking Board"
+        intro="Select one of your active job postings below to review candidates and move them through stages."
+      />
+
+      {/* Advertisement Selector Bar */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">Active Job Posting:</span>
+          <select
+            aria-label="Advertisement"
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className={`${inputCls} w-auto min-w-72 font-medium`}
+          >
+            <option value="">
+              {myAds.items.length ? 'Select a job advertisement…' : 'No active advertisements found'}
+            </option>
+            {myAds.items.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.jobTitle} {a.city && `· ${a.city}`} ({a.openPositionCount} openings)
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selected && !apps.loading && (
+          <div className="flex items-center gap-4 text-xs font-semibold text-slate-600">
+            <span>Total: <strong className="text-slate-900">{apps.items.length}</strong></span>
+            <span className="text-amber-700">Pending: {apps.items.filter((a) => a.status === 'PENDING').length}</span>
+            <span className="text-emerald-700">Accepted: {apps.items.filter((a) => a.status === 'ACCEPTED').length}</span>
+            <span className="text-rose-700">Rejected: {apps.items.filter((a) => a.status === 'REJECTED').length}</span>
           </div>
-          {(apps.error || moveError) && <div className="mb-4"><Notice ok={false}>{apps.error || moveError}</Notice></div>}
-          {!selected ? <Empty>Choose an advertisement to see its applicants.</Empty>
-            : apps.loading ? <p className="text-sm text-[#627085]">Loading…</p>
-            : apps.items.length === 0 && !apps.error ? <Empty>No applications yet.</Empty>
-            : (
-              <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))' }}>
-                {statuses.map((s) => {
-                  const col = apps.items.filter((a) => a.status === s)
-                  return (
-                    <section key={s} aria-label={STATUS_META[s]?.label ?? s} className="rounded-lg bg-[#E9EDF2] p-3"
-                      style={{ borderTop: `4px solid ${STATUS_META[s]?.color ?? '#627085'}` }}>
-                      <h2 style={display} className="mb-3 flex items-baseline justify-between px-1 font-semibold text-[#17233A]">
-                        {STATUS_META[s]?.label ?? s}
-                        <span className="text-sm font-normal text-[#627085]">{col.length}</span>
-                      </h2>
-                      <ul className="space-y-2">
-                        {col.map((app) => {
-                          const p = seekerById[app.jobSeekerId]
-                          const name = p ? `${p.name} ${p.lastName}` : `Candidate #${app.jobSeekerId}`
-                          return (
-                            <li key={app.id} className="rounded-md border border-[#DDE3EA] bg-white p-3">
-                              <p className="font-medium text-[#17233A]">{name}</p>
-                              {p?.email && <p className="truncate text-sm text-[#627085]">{p.email}</p>}
-                              <p className="mt-1 text-xs text-[#627085]">Applied {dateOf(app.applicationDate)}</p>
-                              <select aria-label={`Move ${name} to another stage`} value={app.status} disabled={busyId === app.id}
-                                onChange={(e) => move(app, e.target.value)} className={`${inputCls} mt-3 py-1.5`}>
-                                {statuses.map((o) => <option key={o} value={o}>{STATUS_META[o]?.label ?? o}</option>)}
-                              </select>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </section>
-                  )
-                })}
-              </div>
-            )}
-        </>
+        )}
+      </div>
+
+      {(apps.error || moveError) && (
+        <div className="mb-6">
+          <Notice ok={false}>{apps.error || moveError}</Notice>
+        </div>
+      )}
+
+      {!selected ? (
+        <Empty title="Select a job advertisement">
+          Choose one of your company’s active job postings from the dropdown above to load its applicant pipeline.
+        </Empty>
+      ) : apps.loading ? (
+        <SkeletonList count={3} />
+      ) : apps.items.length === 0 && !apps.error ? (
+        <Empty title="No applicants yet">
+          No candidates have applied to this job advertisement yet. Check back soon!
+        </Empty>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          {statuses.map((s) => {
+            const col = apps.items.filter((a) => a.status === s)
+            const meta = STATUS_META[s]
+            return (
+              <section
+                key={s}
+                aria-label={meta?.label ?? s}
+                className="flex flex-col rounded-2xl border border-slate-200/90 bg-slate-100/70 p-4"
+                style={{ borderTop: `4px solid ${meta?.color ?? '#64748B'}` }}
+              >
+                <div className="mb-4 flex items-center justify-between px-1">
+                  <h2 style={display} className="text-base font-bold text-slate-900">
+                    {meta?.label ?? s}
+                  </h2>
+                  <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-slate-700 shadow-2xs ring-1 ring-slate-200">
+                    {col.length}
+                  </span>
+                </div>
+
+                {col.length === 0 ? (
+                  <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300/80 py-10 text-xs text-slate-400">
+                    No candidates in this stage
+                  </div>
+                ) : (
+                  <ul className="space-y-3">
+                    {col.map((app) => {
+                      const fullName =
+                        [app.candidateFirstName, app.candidateLastName].filter(Boolean).join(' ') ||
+                        `Candidate #${app.jobSeekerId}`
+                      const initials = fullName
+                        .split(/\s+/)
+                        .slice(0, 2)
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()
+
+                      return (
+                        <li
+                          key={app.id}
+                          className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs transition hover:shadow-sm"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0B7A75]/15 text-xs font-bold text-[#0B7A75]">
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-semibold text-slate-900">{fullName}</p>
+                              {app.candidateEmail && (
+                                <a
+                                  href={`mailto:${app.candidateEmail}`}
+                                  className="block truncate text-xs text-[#0B7A75] hover:underline"
+                                >
+                                  {app.candidateEmail}
+                                </a>
+                              )}
+                              <p className="mt-1 text-[11px] text-slate-400">Applied {dateOf(app.applicationDate)}</p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3.5 border-t border-slate-100 pt-3">
+                            <label
+                              htmlFor={`stage-${app.id}`}
+                              className="mb-1 block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                              Move stage
+                            </label>
+                            <select
+                              id={`stage-${app.id}`}
+                              aria-label={`Move ${fullName} to another stage`}
+                              value={app.status}
+                              disabled={busyId === app.id}
+                              onChange={(e) => move(app, e.target.value)}
+                              className={`${inputCls} py-1.5 text-xs font-semibold`}
+                            >
+                              {statuses.map((o) => (
+                                <option key={o} value={o}>
+                                  {STATUS_META[o]?.label ?? o}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            )
+          })}
+        </div>
       )}
     </>
   )
